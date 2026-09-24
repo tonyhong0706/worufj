@@ -1,82 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>骰子樂園 | 擲骰子</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>VERSTAPPEN // DINO RUN</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="index.html" aria-label="骰子樂園首頁">
-        <span class="brand-mark" aria-hidden="true">⚄</span>
-        <span>骰子樂園</span>
-      </a>
-      <span class="status-pill"><span class="status-dot"></span>準備就緒</span>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="badge">MV<br>33</div>
+        <div>
+          <h1>VERSTAPPEN // DINO RUN</h1>
+          <p class="subtitle">RED BULL RACING · KEEP PUSHING</p>
+        </div>
+      </div>
+      <div class="hud" aria-label="遊戲資訊">
+        <div><strong id="score">00000</strong><span>SCORE</span></div>
+        <div><strong id="best">00000</strong><span>BEST</span></div>
+      </div>
     </header>
 
-    <section class="hero" aria-labelledby="page-title">
-      <div class="hero-copy">
-        <p class="eyebrow">ROLL THE MOMENT</p>
-        <h1 id="page-title">今天的好運，<br><em>交給骰子決定。</em></h1>
-        <p class="intro">選擇骰子數量，按下按鈕，讓一點隨機為你的下一步帶來靈感。</p>
-      </div>
-
-      <section class="roller-panel" aria-labelledby="roller-title">
-        <div class="panel-heading">
-          <div>
-            <p class="section-label">即時擲骰</p>
-            <h2 id="roller-title">準備好了嗎？</h2>
-          </div>
-          <span class="roll-count" id="roll-count">第 1 次</span>
+    <section class="game-wrap">
+      <canvas id="game" width="960" height="420" aria-label="Max Verstappen 小恐龍跑酷遊戲"></canvas>
+      <div id="overlay" class="overlay">
+        <div class="overlay-card">
+          <h2 id="overlay-title">READY TO RACE?</h2>
+          <p id="overlay-copy">按 <kbd>空白鍵</kbd> 或點擊畫面跳躍</p>
+          <p>跳起來時，Max 會把紅牛 F1 扛在肩上！</p>
         </div>
-
-        <div class="dice-stage" id="dice-stage" aria-live="polite" aria-label="骰子結果">
-          <div class="dice die-placeholder">?</div>
-        </div>
-
-        <div class="result-row">
-          <span>本次總點數</span>
-          <strong id="total-result">—</strong>
-        </div>
-
-        <div class="controls">
-          <label for="dice-count">骰子數量</label>
-          <div class="select-wrap">
-            <select id="dice-count" aria-label="選擇骰子數量">
-              <option value="1">1 顆骰子</option>
-              <option value="2" selected>2 顆骰子</option>
-              <option value="3">3 顆骰子</option>
-              <option value="4">4 顆骰子</option>
-              <option value="5">5 顆骰子</option>
-              <option value="6">6 顆骰子</option>
-            </select>
-          </div>
-          <button class="roll-button" id="roll-button" type="button">
-            <span aria-hidden="true">↻</span>
-            擲骰子
-          </button>
-        </div>
-      </section>
-    </section>
-
-    <section class="history-section" aria-labelledby="history-title">
-      <div class="section-heading">
-        <div>
-          <p class="section-label">ROLL LOG</p>
-          <h2 id="history-title">最近結果</h2>
-        </div>
-        <button class="clear-button" id="clear-history" type="button">清除紀錄</button>
-      </div>
-      <div class="history-list" id="history-list">
-        <p class="empty-state">你的擲骰紀錄會顯示在這裡。</p>
       </div>
     </section>
 
-    <footer class="footer">每一次擲骰，都是一個新的開始。</footer>
+    <footer>
+      <span class="tip">SPACE / ↑ / 點擊：跳躍　·　撞到障礙物後重新開始</span>
+      <button id="restart" type="button">↻ 重新出發</button>
+    </footer>
   </main>
 
-  <script src="script.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>
