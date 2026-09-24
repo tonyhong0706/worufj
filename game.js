@@ -1,279 +1,118 @@
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
-const overlay = document.getElementById('overlay');
-const overlayTitle = document.getElementById('overlay-title');
-const overlayCopy = document.getElementById('overlay-copy');
-const restartButton = document.getElementById('restart');
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 
-const W = canvas.width;
-const H = canvas.height;
-const groundY = 330;
-const colors = { ink: '#101820', red: '#e10600', yellow: '#ffd200', blue: '#0b3d91', white: '#fffdf6', gray: '#8ca0a5' };
-const maxImage = new Image();
-const f1Image = new Image();
-let maxImageReady = false;
-let f1ImageReady = false;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x091216);
+scene.fog = new THREE.Fog(0x091216, 75, 300);
+const camera = new THREE.PerspectiveCamera(54, innerWidth / innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+const maxPixelRatio = Math.min(devicePixelRatio, 2);
+let renderScale = 1;
+let frameTotal = 0;
+let frameSamples = 0;
+function applyRenderScale() { renderer.setPixelRatio(maxPixelRatio * renderScale); renderer.setSize(innerWidth, innerHeight, false); }
+applyRenderScale();
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.querySelector('#app').appendChild(renderer.domElement);
 
-maxImage.onload = () => { maxImageReady = true; };
-f1Image.onload = () => { f1ImageReady = true; };
-maxImage.src = 'assets/assetsmax-verstappen.png';
-f1Image.src = 'assets/images.png';
+const hemi = new THREE.HemisphereLight(0xc8d4d4, 0x071015, 1.5);
+scene.add(hemi);
+const moon = new THREE.DirectionalLight(0xfff4d6, 3.2);
+moon.position.set(-40, 80, 20); moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048); scene.add(moon);
 
-let best = Number(localStorage.getItem('verstappen-best') || 0);
-let score = 0;
-let speed = 6;
-let distance = 0;
-let running = false;
-let gameOver = false;
-let lastTime = 0;
-let spawnTimer = 700;
-let stripeOffset = 0;
-let obstacles = [];
+const trackGroup = new THREE.Group(); scene.add(trackGroup);
+const asphalt = new THREE.MeshStandardMaterial({ color: 0x242d30, roughness: .92 });
+const grass = new THREE.MeshStandardMaterial({ color: 0x162c28, roughness: 1 });
+const curbRed = new THREE.MeshStandardMaterial({ color: 0xd63b31, roughness: .7 });
+const curbWhite = new THREE.MeshStandardMaterial({ color: 0xe8e5d5, roughness: .7 });
+const lineMat = new THREE.MeshBasicMaterial({ color: 0xf3edcf });
 
-const player = { x: 130, y: groundY - 58, w: 100, h: 58, vy: 0, jumping: false };
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), grass); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const centerline = [
+  [-27,-58], [22,-58], [36,-53], [45,-40], [47,-22], [41,-7], [29,2],
+  [16,8], [11,20], [15,33], [8,45], [-5,49], [-17,43], [-22,31],
+  [-31,22], [-45,23], [-57,13], [-61,-2], [-55,-18], [-44,-28], [-31,-37]
+].map(([x, z]) => new THREE.Vector3(x, 0, z));
+const circuit = new THREE.CatmullRomCurve3(centerline, true, 'catmullrom', .18);
+const trackPoints = circuit.getPoints(240).slice(0, -1);
+const trackHalfWidth = 11;
 
-function resetGame() {
-  score = 0;
-  speed = 6;
-  distance = 0;
-  spawnTimer = 700;
-  stripeOffset = 0;
-  obstacles = [];
-  player.y = groundY - player.h;
-  player.vy = 0;
-  player.jumping = false;
-  running = false;
-  gameOver = false;
-  overlayTitle.textContent = 'READY TO RACE?';
-  overlayCopy.innerHTML = '按 <kbd>空白鍵</kbd> 或點擊畫面跳躍';
-  overlay.classList.remove('hidden');
-  updateHud();
-  draw();
-}
-
-function startOrJump() {
-  if (gameOver) { resetGame(); return; }
-  if (!running) { running = true; overlay.classList.add('hidden'); }
-  if (!player.jumping) {
-    player.vy = -15;
-    player.jumping = true;
+function makeRibbon(points, halfWidth, material, y = .04, offset = 0) {
+  const positions = [], indices = [], count = points.length;
+  for (let i = 0; i < count; i++) {
+    const previous = points[(i - 1 + count) % count]; const next = points[(i + 1) % count];
+    const tangent = next.clone().sub(previous).normalize(); const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+    const left = points[i].clone().addScaledVector(normal, halfWidth + offset); const right = points[i].clone().addScaledVector(normal, -halfWidth + offset);
+    positions.push(left.x, y, left.z, right.x, y, right.z);
   }
+  for (let i = 0; i < count; i++) { const next = (i + 1) % count; indices.push(i * 2, next * 2, i * 2 + 1, next * 2, next * 2 + 1, i * 2 + 1); }
+  const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setIndex(indices); geometry.computeVertexNormals();
+  const ribbon = new THREE.Mesh(geometry, material); ribbon.receiveShadow = true; trackGroup.add(ribbon); return ribbon;
 }
-
-function updateHud() {
-  scoreEl.textContent = String(score).padStart(5, '0');
-  bestEl.textContent = String(best).padStart(5, '0');
+makeRibbon(trackPoints, trackHalfWidth, asphalt);
+makeRibbon(trackPoints, 1.05, curbRed, .08, trackHalfWidth + .35);
+makeRibbon(trackPoints, 1.05, curbWhite, .08, -trackHalfWidth - .35);
+makeRibbon(trackPoints, 1.1, grass, .02, trackHalfWidth + 2.4);
+makeRibbon(trackPoints, 1.1, grass, .02, -trackHalfWidth - 2.4);
+for (let i = 0; i < trackPoints.length; i += 22) {
+  const point = trackPoints[i]; const previous = trackPoints[(i - 1 + trackPoints.length) % trackPoints.length]; const next = trackPoints[(i + 1) % trackPoints.length];
+  const tangent = next.clone().sub(previous).normalize(); const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(.18, 3.2, .18), new THREE.MeshStandardMaterial({ color: 0x65706d, metalness: .6 })); post.position.copy(point).addScaledVector(normal, trackHalfWidth + 4); post.position.y = 1.6; post.castShadow = true; scene.add(post);
+  const banner = new THREE.Mesh(new THREE.BoxGeometry(3, .12, .12), new THREE.MeshBasicMaterial({ color: 0xb6c2b8 })); banner.position.copy(post.position); banner.position.y = 2.7; banner.rotation.y = Math.atan2(tangent.x, tangent.z); scene.add(banner);
 }
+const startPoint = trackPoints[0]; const startNext = trackPoints[1]; const startAngle = Math.atan2(startNext.x - startPoint.x, startNext.z - startPoint.z);
+const startLine = new THREE.Mesh(new THREE.BoxGeometry(22, .035, 1.4), lineMat); startLine.position.copy(startPoint); startLine.position.y = .12; startLine.rotation.y = startAngle; trackGroup.add(startLine);
+for (let i = 0; i < 16; i++) { const marker = new THREE.Mesh(new THREE.BoxGeometry(.45, .04, 2.2), lineMat); marker.position.copy(startPoint); marker.position.x += (i - 7.5) * 2.8; marker.position.y = .13; marker.rotation.y = startAngle; trackGroup.add(marker); }
 
-function rect(x, y, w, h, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+function makeTree(x, z, scale) {
+  const tree = new THREE.Group(); const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.35, .55, 4, 7), new THREE.MeshStandardMaterial({ color: 0x3d3024 })); trunk.position.y = 2; tree.add(trunk);
+  const crown = new THREE.Mesh(new THREE.ConeGeometry(3.5, 9, 8), new THREE.MeshStandardMaterial({ color: 0x153b36, roughness: 1 })); crown.position.y = 7; tree.add(crown); tree.position.set(x, 0, z); tree.scale.setScalar(scale); tree.castShadow = true; scene.add(tree);
 }
+[[-78,-56,1.4],[68,-48,1.1],[-78,18,1.7],[66,42,1.3],[-50,68,1.2],[38,70,1.1]].forEach(v => makeTree(...v));
 
-function drawBackground() {
-  ctx.fillStyle = '#fbfaf4';
-  ctx.fillRect(0, 0, W, H);
-  rect(0, 0, W, 8, colors.yellow);
-  rect(0, groundY, W, H - groundY, '#e5ece8');
-
-  ctx.strokeStyle = '#b8c8c5';
-  ctx.lineWidth = 2;
-  for (let x = -stripeOffset % 48; x < W; x += 48) {
-    ctx.beginPath(); ctx.moveTo(x, groundY + 30); ctx.lineTo(x + 20, groundY + 30); ctx.stroke();
-  }
-  ctx.strokeStyle = colors.ink;
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
-  ctx.fillStyle = colors.red;
-  for (let x = -stripeOffset % 42; x < W; x += 42) ctx.fillRect(x, groundY + 4, 21, 9);
-  ctx.fillStyle = colors.white;
-  for (let x = 21 - stripeOffset % 42; x < W; x += 42) ctx.fillRect(x, groundY + 4, 21, 9);
-
-  drawCloud(160, 82, 1);
-  drawCloud(650, 120, .75);
-  drawCheckeredFlag(820, 52);
+function box(material, size, pos, rot = [0,0,0]) { const m = new THREE.Mesh(new THREE.BoxGeometry(...size), material); m.position.set(...pos); m.rotation.set(...rot); m.castShadow = true; return m; }
+function makeCar() {
+  const car = new THREE.Group();
+  const blue = new THREE.MeshStandardMaterial({ color: 0x102d4d, metalness: .35, roughness: .3 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xe52f2d, metalness: .25, roughness: .3 });
+  const yellow = new THREE.MeshStandardMaterial({ color: 0xd8e631, metalness: .25, roughness: .3 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x070a0c, metalness: .6, roughness: .2 });
+  car.add(box(blue, [2.5,.48,6.8], [0,.8,0])); car.add(box(red, [1.3,.18,3.1], [0,1.12,-1.2]));
+  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.05, 16, 8), new THREE.MeshStandardMaterial({ color: 0x10161b, metalness: .7, roughness: .15 })); cockpit.scale.set(1,.42,1.2); cockpit.position.set(0,1.25,.2); cockpit.castShadow = true; car.add(cockpit);
+  car.add(box(yellow, [1.05,.08,2.6], [0,1.2,-2.45])); car.add(box(red, [4.2,.14,.42], [0,.78,3.05])); car.add(box(blue, [3.2,.15,.28], [0,1.9,2.45]));
+  [[-1.28,.55,-2.2],[1.28,.55,-2.2],[-1.28,.55,2.05],[1.28,.55,2.05]].forEach(([x,y,z]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(.52,.52,.32,16), black); w.rotation.z = Math.PI / 2; w.position.set(x,y,z); w.castShadow = true; car.add(w); });
+  const number = box(yellow, [.7,.025,.9], [0,1.43,-2.95]); car.add(number);
+  car.position.copy(startPoint); car.rotation.y = startAngle; car.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); scene.add(car); return car;
 }
+const car = makeCar();
 
-function drawCloud(x, y, scale) {
-  ctx.fillStyle = '#d8e4e2';
-  rect(x, y + 12 * scale, 72 * scale, 11 * scale, colors.white);
-  rect(x + 13 * scale, y + 3 * scale, 23 * scale, 18 * scale, colors.white);
-  rect(x + 35 * scale, y - 4 * scale, 20 * scale, 25 * scale, colors.white);
-  rect(x + 55 * scale, y + 6 * scale, 18 * scale, 17 * scale, colors.white);
-  ctx.strokeStyle = '#b8c8c5'; ctx.lineWidth = 2;
-  ctx.strokeRect(x, y + 12 * scale, 72 * scale, 11 * scale);
+const keys = {}; addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault(); if (e.key.toLowerCase() === 'r') reset(); }); addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+let speed = 0, heading = startAngle, lapStart = performance.now(); const clock = new THREE.Clock();
+const speedEl = document.querySelector('#speed'), minEl = document.querySelector('#lapMinutes'), secEl = document.querySelector('#lapSeconds'), msEl = document.querySelector('#lapMs');
+function nearestTrackPoint(position) {
+  let nearest = trackPoints[0], distance = Infinity;
+  for (const point of trackPoints) { const nextDistance = point.distanceToSquared(position); if (nextDistance < distance) { distance = nextDistance; nearest = point; } }
+  return { point: nearest, distance: Math.sqrt(distance) };
 }
-
-function drawCheckeredFlag(x, y) {
-  rect(x, y, 3, 65, colors.ink);
-  for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) {
-    rect(x + 3 + col * 9, y + row * 9, 9, 9, (row + col) % 2 ? colors.white : colors.ink);
-  }
+function reset() { car.position.copy(startPoint); car.rotation.y = startAngle; heading = startAngle; speed = 0; lapStart = performance.now(); }
+function updateCar(dt) {
+  const throttle = keys.w || keys.arrowup, brake = keys.s || keys.arrowdown;
+  if (throttle) speed += 24 * dt; else speed -= 8 * dt;
+  if (brake) speed -= speed > 0 ? 38 * dt : 15 * dt;
+  speed = THREE.MathUtils.clamp(speed, -12, 66);
+  const steer = (keys.a || keys.arrowleft ? 1 : 0) - (keys.d || keys.arrowright ? 1 : 0);
+  const steerPower = (Math.abs(speed) / 66) * 1.7;
+  heading += steer * steerPower * dt * (speed >= 0 ? 1 : -1);
+  car.rotation.y = heading;
+  car.position.x += Math.sin(heading) * speed * dt;
+  car.position.z += Math.cos(heading) * speed * dt;
+  const trackPosition = nearestTrackPoint(car.position); if (trackPosition.distance > trackHalfWidth - 1) { speed *= .88; car.position.lerp(trackPosition.point, .22); }
+  car.rotation.z = THREE.MathUtils.lerp(car.rotation.z, -steer * Math.min(Math.abs(speed) / 50, 1) * .12, dt * 8);
+  const target = car.position.clone().add(new THREE.Vector3(-Math.sin(heading) * 10, 6.2, -Math.cos(heading) * 10)); camera.position.lerp(target, 1 - Math.pow(.001, dt)); camera.lookAt(car.position.x, 1.1, car.position.z);
+  speedEl.textContent = String(Math.round(Math.max(speed, 0) * 3.6)).padStart(3, '0');
 }
-
-function drawCar(x, y, scale = 1, carried = false) {
-  if (f1ImageReady) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.drawImage(f1Image, x - 8 * scale, y - 4 * scale, 118 * scale, 68 * scale);
-    ctx.restore();
-    return;
-  }
-
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
-  rect(13, 25, 73, 12, colors.red);
-  rect(26, 17, 38, 10, colors.blue);
-  rect(34, 10, 18, 9, colors.blue);
-  rect(13, 22, 11, 5, colors.yellow);
-  rect(64, 28, 31, 4, colors.yellow);
-  rect(5, 34, 100, 4, colors.ink);
-  rect(22, 38, 13, 13, colors.ink);
-  rect(72, 38, 13, 13, colors.ink);
-  rect(25, 40, 7, 7, colors.gray);
-  rect(75, 40, 7, 7, colors.gray);
-  rect(0, 22, 16, 6, colors.ink);
-  rect(86, 22, 20, 6, colors.ink);
-  if (carried) { rect(47, 0, 5, 12, colors.ink); }
-  ctx.restore();
-}
-
-function drawPlayer() {
-  const x = player.x;
-  const y = player.y;
-  if (!player.jumping) {
-    drawCar(x, y + 8, 1);
-    if (maxImageReady) {
-      drawMax(x + 27, y - 15, .52);
-    } else {
-      rect(x + 39, y - 5, 20, 18, colors.red);
-      rect(x + 43, y - 14, 14, 12, colors.blue);
-      rect(x + 45, y - 13, 7, 5, colors.white);
-      rect(x + 34, y + 13, 10, 5, colors.yellow);
-    }
-  } else {
-    drawCar(x - 2, y - 36, .95, true);
-    if (maxImageReady) {
-      drawMax(x + 27, y - 1, .52);
-    } else {
-      rect(x + 39, y + 3, 18, 23, colors.red);
-      rect(x + 43, y - 7, 14, 12, colors.blue);
-      rect(x + 46, y - 6, 7, 5, colors.white);
-      rect(x + 31, y - 1, 10, 5, colors.ink);
-      rect(x + 55, y - 1, 10, 5, colors.ink);
-      rect(x + 37, y + 26, 7, 20, colors.ink);
-      rect(x + 56, y + 26, 7, 20, colors.ink);
-      rect(x + 30, y + 43, 16, 5, colors.ink);
-      rect(x + 55, y + 43, 16, 5, colors.ink);
-    }
-  }
-}
-
-function drawMax(x, y, scale) {
-  ctx.save();
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.drawImage(maxImage, x, y, 56 * scale, 84 * scale);
-  ctx.restore();
-}
-
-function spawnObstacle() {
-  const roll = Math.random();
-  if (roll < .34) obstacles.push({ type: 'kerb', x: W + 20, y: groundY - 30, w: 52, h: 30 });
-  else if (roll < .68) obstacles.push({ type: 'tires', x: W + 20, y: groundY - 48, w: 34, h: 48 });
-  else obstacles.push({ type: 'toto', x: W + 20, y: groundY - 70, w: 46, h: 70 });
-}
-
-function drawObstacle(item) {
-  const { x, y } = item;
-  if (item.type === 'kerb') {
-    for (let i = 0; i < 4; i++) rect(x + i * 13, y + 12, 13, 18, i % 2 ? colors.white : colors.red);
-    rect(x, y + 10, 52, 3, colors.ink);
-  } else if (item.type === 'tires') {
-    for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = colors.ink;
-      ctx.beginPath(); ctx.arc(x + 17, y + 40 - i * 14, 15, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = colors.gray;
-      ctx.beginPath(); ctx.arc(x + 17, y + 40 - i * 14, 6, 0, Math.PI * 2); ctx.fill();
-    }
-  } else {
-    rect(x + 20, y + 18, 7, 52, colors.ink);
-    rect(x, y, 46, 27, colors.yellow);
-    rect(x + 4, y + 5, 38, 4, colors.ink);
-    rect(x + 7, y + 13, 32, 4, colors.red);
-    rect(x + 10, y + 30, 27, 10, colors.ink);
-    rect(x + 2, y + 40, 43, 5, colors.red);
-  }
-}
-
-function collides(a, b) {
-  return a.x + 22 < b.x + b.w - 4 && a.x + a.w - 20 > b.x + 4 && a.y + 8 < b.y + b.h && a.y + a.h > b.y + 5;
-}
-
-function update(dt) {
-  if (!running || gameOver) return;
-  distance += speed * dt / 16.67;
-  score = Math.floor(distance / 8);
-  speed = Math.min(12, 6 + score / 450);
-  stripeOffset = (stripeOffset + speed * dt / 16.67) % 42;
-  player.vy += .72 * dt / 16.67;
-  player.y += player.vy * dt / 16.67;
-  if (player.y >= groundY - player.h) {
-    player.y = groundY - player.h;
-    player.vy = 0;
-    player.jumping = false;
-  }
-  spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    spawnObstacle();
-    spawnTimer = Math.max(580, 1250 - speed * 50 + Math.random() * 500);
-  }
-  obstacles.forEach(item => item.x -= speed * dt / 16.67);
-  obstacles = obstacles.filter(item => item.x > -120);
-  const playerBox = { x: player.x, y: player.y, w: player.w, h: player.h };
-  if (obstacles.some(item => collides(playerBox, item))) endGame();
-  updateHud();
-}
-
-function endGame() {
-  running = false;
-  gameOver = true;
-  best = Math.max(best, score);
-  localStorage.setItem('verstappen-best', best);
-  overlayTitle.textContent = 'RACE OVER';
-  overlayCopy.innerHTML = '按 <kbd>空白鍵</kbd> 或點擊畫面再跑一次';
-  overlay.classList.remove('hidden');
-  updateHud();
-}
-
-function draw() {
-  drawBackground();
-  obstacles.forEach(drawObstacle);
-  drawPlayer();
-  if (running) {
-    ctx.fillStyle = colors.ink;
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('LAP 01  //  PUSH', 22, 30);
-  }
-}
-
-function loop(time) {
-  const dt = Math.min(34, time - lastTime || 16.67);
-  lastTime = time;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
-
-window.addEventListener('keydown', event => {
-  if (event.code === 'Space' || event.code === 'ArrowUp') {
-    event.preventDefault();
-    startOrJump();
-  }
-});
-canvas.addEventListener('pointerdown', startOrJump);
-restartButton.addEventListener('click', resetGame);
-resetGame();
-requestAnimationFrame(loop);
+function animate() { requestAnimationFrame(animate); const dt = Math.min(clock.getDelta(), .05); updateCar(dt); const elapsed = performance.now() - lapStart; minEl.textContent = String(Math.floor(elapsed / 60000)).padStart(2,'0'); secEl.textContent = String(Math.floor(elapsed / 1000) % 60).padStart(2,'0'); msEl.textContent = String(Math.floor(elapsed / 10) % 100).padStart(2,'0'); const renderStart = performance.now(); renderer.render(scene, camera); frameTotal += performance.now() - renderStart; frameSamples++; if (frameSamples >= 30) { const averageFrameMs = frameTotal / frameSamples; if (averageFrameMs > 19) renderScale = Math.max(.7, renderScale - .05); else if (averageFrameMs < 13) renderScale = Math.min(1, renderScale + .05); applyRenderScale(); frameTotal = 0; frameSamples = 0; } }
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyRenderScale(); });
+camera.position.set(startPoint.x - 10, 6, startPoint.z); camera.lookAt(car.position); animate();

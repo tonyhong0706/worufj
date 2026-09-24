@@ -1,44 +1,176 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>VERSTAPPEN // DINO RUN</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MAX // Apex Circuit</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+    :root { --ink: #f4f0e8; --muted: #a6aaa7; --acid: #d7f22b; --red: #ef3d32; --night: #091216; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; overflow: hidden; background: var(--night); color: var(--ink); font-family: 'Barlow Condensed', sans-serif; }
+    #app { position: fixed; inset: 0; }
+    canvas { display: block; }
+    .hud { position: fixed; inset: 0; pointer-events: none; padding: 26px 32px; display: flex; flex-direction: column; justify-content: space-between; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; }
+    .brand { display: flex; align-items: center; gap: 13px; }
+    .brand-mark { width: 34px; height: 34px; background: var(--red); clip-path: polygon(0 0, 100% 0, 72% 100%, 0 100%); position: relative; }
+    .brand-mark::after { content: '1'; position: absolute; right: 6px; top: 2px; color: #fff; font-size: 25px; font-weight: 800; }
+    .brand h1 { margin: 0; font-size: 24px; line-height: .9; letter-spacing: .04em; font-weight: 800; }
+    .brand p { margin: 6px 0 0; color: var(--acid); font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: .16em; }
+    .status { text-align: right; font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: .08em; }
+    .status strong { color: var(--acid); font-size: 11px; }
+    .metrics { display: flex; align-items: flex-end; gap: 42px; }
+    .metric { min-width: 130px; }
+    .metric-label { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: .12em; }
+    .speed { display: flex; align-items: baseline; gap: 8px; }
+    .speed-value { color: var(--acid); font-size: clamp(68px, 9vw, 116px); line-height: .8; font-weight: 700; letter-spacing: -.04em; text-shadow: 0 0 28px rgba(215,242,43,.2); }
+    .speed-unit { color: var(--ink); font-size: 15px; font-weight: 600; }
+    .lap-value { margin-top: 7px; font-family: 'Space Mono', monospace; font-size: 24px; font-weight: 700; }
+    .lap-value span { color: var(--red); }
+    .bottom { display: flex; align-items: flex-end; justify-content: space-between; }
+    .tip { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px; line-height: 1.8; letter-spacing: .04em; }
+    .tip b { color: var(--ink); }
+    .track-info { text-align: right; }
+    .track-name { font-size: 26px; font-weight: 700; letter-spacing: .04em; }
+    .track-meta { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: .1em; }
+    @media (max-width: 600px) { .hud { padding: 18px; } .status { display: none; } .metrics { gap: 22px; } .metric { min-width: 100px; } .speed-value { font-size: 70px; } .lap-value { font-size: 18px; } .track-name { font-size: 20px; } }
+  </style>
 </head>
 <body>
-  <main class="shell">
-    <header>
-      <div class="brand">
-        <div class="badge">MV<br>33</div>
-        <div>
-          <h1>VERSTAPPEN // DINO RUN</h1>
-          <p class="subtitle">RED BULL RACING · KEEP PUSHING</p>
-        </div>
-      </div>
-      <div class="hud" aria-label="遊戲資訊">
-        <div><strong id="score">00000</strong><span>SCORE</span></div>
-        <div><strong id="best">00000</strong><span>BEST</span></div>
-      </div>
+  <div id="app"></div>
+  <main class="hud" aria-live="polite">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark"></div><div><h1>MAX // APEX CIRCUIT</h1><p>RACING SIMULATION 01 / NIGHT RUN</p></div></div>
+      <div class="status"><strong>ADAPTIVE UPSCALE</strong><br />WEBGL / CAR 01</div>
     </header>
-
-    <section class="game-wrap">
-      <canvas id="game" width="960" height="420" aria-label="Max Verstappen 小恐龍跑酷遊戲"></canvas>
-      <div id="overlay" class="overlay">
-        <div class="overlay-card">
-          <h2 id="overlay-title">READY TO RACE?</h2>
-          <p id="overlay-copy">按 <kbd>空白鍵</kbd> 或點擊畫面跳躍</p>
-          <p>跳起來時，Max 會把紅牛 F1 扛在肩上！</p>
-        </div>
-      </div>
+    <section class="metrics">
+      <div class="metric"><div class="metric-label">VELOCITY</div><div class="speed"><span class="speed-value" id="speed">000</span><span class="speed-unit">KM/H</span></div></div>
+      <div class="metric"><div class="metric-label">LAP TIME</div><div class="lap-value"><span id="lapMinutes">00</span>:<span id="lapSeconds">00</span>.<span id="lapMs">00</span></div></div>
     </section>
-
-    <footer>
-      <span class="tip">SPACE / ↑ / 點擊：跳躍　·　撞到障礙物後重新開始</span>
-      <button id="restart" type="button">↻ 重新出發</button>
-    </footer>
+    <footer class="bottom"><div class="tip"><b>W / ↑</b> THROTTLE &nbsp;&nbsp; <b>S / ↓</b> BRAKE<br /><b>A D / ← →</b> STEER &nbsp;&nbsp; <b>R</b> RESET</div><div class="track-info"><div class="track-name">ABU DHABI / YAS MARINA</div><div class="track-meta">5.28 KM &nbsp;•&nbsp; SECTOR 01 &nbsp;•&nbsp; NIGHT</div></div></footer>
   </main>
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 
-  <script src="game.js"></script>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x091216);
+    scene.fog = new THREE.Fog(0x091216, 75, 300);
+    const camera = new THREE.PerspectiveCamera(54, innerWidth / innerHeight, 0.1, 500);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    const maxPixelRatio = Math.min(devicePixelRatio, 2);
+    let renderScale = 1;
+    let frameTotal = 0;
+    let frameSamples = 0;
+    function applyRenderScale() { renderer.setPixelRatio(maxPixelRatio * renderScale); renderer.setSize(innerWidth, innerHeight, false); }
+    applyRenderScale();
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.querySelector('#app').appendChild(renderer.domElement);
+
+    const hemi = new THREE.HemisphereLight(0xc8d4d4, 0x071015, 1.5);
+    scene.add(hemi);
+    const moon = new THREE.DirectionalLight(0xfff4d6, 3.2);
+    moon.position.set(-40, 80, 20); moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048); scene.add(moon);
+
+    const trackGroup = new THREE.Group(); scene.add(trackGroup);
+    const asphalt = new THREE.MeshStandardMaterial({ color: 0x242d30, roughness: .92 });
+    const grass = new THREE.MeshStandardMaterial({ color: 0x162c28, roughness: 1 });
+    const curbRed = new THREE.MeshStandardMaterial({ color: 0xd63b31, roughness: .7 });
+    const curbWhite = new THREE.MeshStandardMaterial({ color: 0xe8e5d5, roughness: .7 });
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xf3edcf });
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), grass); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+    const centerline = [
+      [-27,-58], [22,-58], [36,-53], [45,-40], [47,-22], [41,-7], [29,2],
+      [16,8], [11,20], [15,33], [8,45], [-5,49], [-17,43], [-22,31],
+      [-31,22], [-45,23], [-57,13], [-61,-2], [-55,-18], [-44,-28], [-31,-37]
+    ].map(([x, z]) => new THREE.Vector3(x, 0, z));
+    const circuit = new THREE.CatmullRomCurve3(centerline, true, 'catmullrom', .18);
+    const trackPoints = circuit.getPoints(240).slice(0, -1);
+    const trackHalfWidth = 11;
+
+    function makeRibbon(points, halfWidth, material, y = .04, offset = 0) {
+      const positions = [], indices = [], count = points.length;
+      for (let i = 0; i < count; i++) {
+        const previous = points[(i - 1 + count) % count]; const next = points[(i + 1) % count];
+        const tangent = next.clone().sub(previous).normalize(); const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+        const left = points[i].clone().addScaledVector(normal, halfWidth + offset); const right = points[i].clone().addScaledVector(normal, -halfWidth + offset);
+        positions.push(left.x, y, left.z, right.x, y, right.z);
+      }
+      for (let i = 0; i < count; i++) { const next = (i + 1) % count; indices.push(i * 2, next * 2, i * 2 + 1, next * 2, next * 2 + 1, i * 2 + 1); }
+      const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setIndex(indices); geometry.computeVertexNormals();
+      const ribbon = new THREE.Mesh(geometry, material); ribbon.receiveShadow = true; trackGroup.add(ribbon); return ribbon;
+    }
+    makeRibbon(trackPoints, trackHalfWidth, asphalt);
+    makeRibbon(trackPoints, 1.05, curbRed, .08, trackHalfWidth + .35);
+    makeRibbon(trackPoints, 1.05, curbWhite, .08, -trackHalfWidth - .35);
+    makeRibbon(trackPoints, 1.1, grass, .02, trackHalfWidth + 2.4);
+    makeRibbon(trackPoints, 1.1, grass, .02, -trackHalfWidth - 2.4);
+    for (let i = 0; i < trackPoints.length; i += 22) {
+      const point = trackPoints[i]; const previous = trackPoints[(i - 1 + trackPoints.length) % trackPoints.length]; const next = trackPoints[(i + 1) % trackPoints.length];
+      const tangent = next.clone().sub(previous).normalize(); const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(.18, 3.2, .18), new THREE.MeshStandardMaterial({ color: 0x65706d, metalness: .6 })); post.position.copy(point).addScaledVector(normal, trackHalfWidth + 4); post.position.y = 1.6; post.castShadow = true; scene.add(post);
+      const banner = new THREE.Mesh(new THREE.BoxGeometry(3, .12, .12), new THREE.MeshBasicMaterial({ color: 0xb6c2b8 })); banner.position.copy(post.position); banner.position.y = 2.7; banner.rotation.y = Math.atan2(tangent.x, tangent.z); scene.add(banner);
+    }
+    const startPoint = trackPoints[0]; const startNext = trackPoints[1]; const startAngle = Math.atan2(startNext.x - startPoint.x, startNext.z - startPoint.z);
+    const startLine = new THREE.Mesh(new THREE.BoxGeometry(22, .035, 1.4), lineMat); startLine.position.copy(startPoint); startLine.position.y = .12; startLine.rotation.y = startAngle; trackGroup.add(startLine);
+    for (let i = 0; i < 16; i++) { const marker = new THREE.Mesh(new THREE.BoxGeometry(.45, .04, 2.2), lineMat); marker.position.copy(startPoint); marker.position.x += (i - 7.5) * 2.8; marker.position.y = .13; marker.rotation.y = startAngle; trackGroup.add(marker); }
+
+    function makeTree(x, z, scale) {
+      const tree = new THREE.Group(); const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.35, .55, 4, 7), new THREE.MeshStandardMaterial({ color: 0x3d3024 })); trunk.position.y = 2; tree.add(trunk);
+      const crown = new THREE.Mesh(new THREE.ConeGeometry(3.5, 9, 8), new THREE.MeshStandardMaterial({ color: 0x153b36, roughness: 1 })); crown.position.y = 7; tree.add(crown); tree.position.set(x, 0, z); tree.scale.setScalar(scale); tree.castShadow = true; scene.add(tree);
+    }
+    [[-78,-56,1.4],[68,-48,1.1],[-78,18,1.7],[66,42,1.3],[-50,68,1.2],[38,70,1.1]].forEach(v => makeTree(...v));
+
+    function box(material, size, pos, rot = [0,0,0]) { const m = new THREE.Mesh(new THREE.BoxGeometry(...size), material); m.position.set(...pos); m.rotation.set(...rot); m.castShadow = true; return m; }
+    function makeCar() {
+      const car = new THREE.Group();
+      const blue = new THREE.MeshStandardMaterial({ color: 0x102d4d, metalness: .35, roughness: .3 });
+      const red = new THREE.MeshStandardMaterial({ color: 0xe52f2d, metalness: .25, roughness: .3 });
+      const yellow = new THREE.MeshStandardMaterial({ color: 0xd8e631, metalness: .25, roughness: .3 });
+      const black = new THREE.MeshStandardMaterial({ color: 0x070a0c, metalness: .6, roughness: .2 });
+      car.add(box(blue, [2.5,.48,6.8], [0,.8,0])); car.add(box(red, [1.3,.18,3.1], [0,1.12,-1.2]));
+      const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.05, 16, 8), new THREE.MeshStandardMaterial({ color: 0x10161b, metalness: .7, roughness: .15 })); cockpit.scale.set(1,.42,1.2); cockpit.position.set(0,1.25,.2); cockpit.castShadow = true; car.add(cockpit);
+      car.add(box(yellow, [1.05,.08,2.6], [0,1.2,-2.45])); car.add(box(red, [4.2,.14,.42], [0,.78,3.05])); car.add(box(blue, [3.2,.15,.28], [0,1.9,2.45]));
+      [[-1.28,.55,-2.2],[1.28,.55,-2.2],[-1.28,.55,2.05],[1.28,.55,2.05]].forEach(([x,y,z]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(.52,.52,.32,16), black); w.rotation.z = Math.PI / 2; w.position.set(x,y,z); w.castShadow = true; car.add(w); });
+      const number = box(yellow, [.7,.025,.9], [0,1.43,-2.95]); car.add(number);
+      car.position.copy(startPoint); car.rotation.y = startAngle; car.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); scene.add(car); return car;
+    }
+    const car = makeCar();
+    // Model hook: replace makeCar() with GLTFLoader.load('assets/car.glb', ...) when a finished asset is available.
+
+    const keys = {}; addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault(); if (e.key.toLowerCase() === 'r') reset(); }); addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+    let speed = 0, heading = Math.PI, lapStart = performance.now(); const clock = new THREE.Clock();
+    const speedEl = document.querySelector('#speed'), minEl = document.querySelector('#lapMinutes'), secEl = document.querySelector('#lapSeconds'), msEl = document.querySelector('#lapMs');
+    function nearestTrackPoint(position) {
+      let nearest = trackPoints[0], distance = Infinity;
+      for (const point of trackPoints) { const nextDistance = point.distanceToSquared(position); if (nextDistance < distance) { distance = nextDistance; nearest = point; } }
+      return { point: nearest, distance: Math.sqrt(distance) };
+    }
+    function reset() { car.position.copy(startPoint); car.rotation.y = startAngle; heading = startAngle; speed = 0; lapStart = performance.now(); }
+    function updateCar(dt) {
+      const throttle = keys.w || keys.arrowup, brake = keys.s || keys.arrowdown;
+      if (throttle) speed += 24 * dt; else speed -= 8 * dt;
+      if (brake) speed -= speed > 0 ? 38 * dt : 15 * dt;
+      speed = THREE.MathUtils.clamp(speed, -12, 66);
+      const steer = (keys.a || keys.arrowleft ? 1 : 0) - (keys.d || keys.arrowright ? 1 : 0);
+      const steerPower = (Math.abs(speed) / 66) * 1.7;
+      heading += steer * steerPower * dt * (speed >= 0 ? 1 : -1);
+      car.rotation.y = heading;
+      car.position.x += Math.sin(heading) * speed * dt;
+      car.position.z += Math.cos(heading) * speed * dt;
+      const trackPosition = nearestTrackPoint(car.position); if (trackPosition.distance > trackHalfWidth - 1) { speed *= .88; car.position.lerp(trackPosition.point, .22); }
+      car.rotation.z = THREE.MathUtils.lerp(car.rotation.z, -steer * Math.min(Math.abs(speed) / 50, 1) * .12, dt * 8);
+      const target = car.position.clone().add(new THREE.Vector3(-Math.sin(heading) * 10, 6.2, -Math.cos(heading) * 10)); camera.position.lerp(target, 1 - Math.pow(.001, dt)); camera.lookAt(car.position.x, 1.1, car.position.z);
+      speedEl.textContent = String(Math.round(Math.max(speed, 0) * 3.6)).padStart(3, '0');
+    }
+    function animate() { requestAnimationFrame(animate); const dt = Math.min(clock.getDelta(), .05); updateCar(dt); const elapsed = performance.now() - lapStart; minEl.textContent = String(Math.floor(elapsed / 60000)).padStart(2,'0'); secEl.textContent = String(Math.floor(elapsed / 1000) % 60).padStart(2,'0'); msEl.textContent = String(Math.floor(elapsed / 10) % 100).padStart(2,'0'); const renderStart = performance.now(); renderer.render(scene, camera); frameTotal += performance.now() - renderStart; frameSamples++; if (frameSamples >= 30) { const averageFrameMs = frameTotal / frameSamples; if (averageFrameMs > 19) renderScale = Math.max(.7, renderScale - .05); else if (averageFrameMs < 13) renderScale = Math.min(1, renderScale + .05); applyRenderScale(); frameTotal = 0; frameSamples = 0; } }
+    addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); applyRenderScale(); });
+    camera.position.set(startPoint.x - 10, 6, startPoint.z); camera.lookAt(car.position); animate();
+  </script>
 </body>
 </html>
