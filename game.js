@@ -10,16 +10,16 @@ const restartButton = document.getElementById('restart');
 const W = canvas.width;
 const H = canvas.height;
 const groundY = 330;
-const colors = { ink: '#101820', red: '#e10600', yellow: '#ffd200', blue: '#0b3d91', white: '#fffdf6', gray: '#8ca0a5' };
-const maxImage = new Image();
-const f1Image = new Image();
-let maxImageReady = false;
-let f1ImageReady = false;
+const colors = { ink: '#101820', red: '#e10600', yellow: '#ffd200', white: '#fffdf6', gray: '#8ca0a5' };
+const playerImage = new Image();
+const playerImageCanvas = document.createElement('canvas');
+const playerImageContext = playerImageCanvas.getContext('2d', { willReadFrequently: true });
+let playerImageReady = false;
+let animationTime = 0;
 
-maxImage.onload = () => { maxImageReady = true; };
-f1Image.onload = () => { f1ImageReady = true; };
-maxImage.src = 'assets/assetsmax-verstappen.png';
-f1Image.src = 'assets/images.png';
+playerImage.onload = () => { playerImageReady = true; };
+playerImage.onerror = () => console.error('無法載入主角 GIF：assets/BAR.gif');
+playerImage.src = 'assets/BAR.gif';
 
 let best = Number(localStorage.getItem('verstappen-best') || 0);
 let score = 0;
@@ -32,7 +32,7 @@ let spawnTimer = 700;
 let stripeOffset = 0;
 let obstacles = [];
 
-const player = { x: 130, y: groundY - 58, w: 100, h: 58, vy: 0, jumping: false };
+const player = { x: 130, y: groundY - 92, w: 100, h: 92, vy: 0, jumping: false };
 
 function resetGame() {
   score = 0;
@@ -142,40 +142,38 @@ function drawCar(x, y, scale = 1, carried = false) {
 }
 
 function drawPlayer() {
-  const x = player.x;
-  const y = player.y;
-  if (!player.jumping) {
-    drawCar(x, y + 8, 1);
-    if (maxImageReady) {
-      drawMax(x + 27, y - 15, .52);
-    } else {
-      rect(x + 39, y - 5, 20, 18, colors.red);
-      rect(x + 43, y - 14, 14, 12, colors.blue);
-      rect(x + 45, y - 13, 7, 5, colors.white);
-      rect(x + 34, y + 13, 10, 5, colors.yellow);
-    }
-  } else {
-    drawCar(x - 2, y - 36, .95, true);
-    if (maxImageReady) {
-      drawMax(x + 27, y - 1, .52);
-    } else {
-      rect(x + 39, y + 3, 18, 23, colors.red);
-      rect(x + 43, y - 7, 14, 12, colors.blue);
-      rect(x + 46, y - 6, 7, 5, colors.white);
-      rect(x + 31, y - 1, 10, 5, colors.ink);
-      rect(x + 55, y - 1, 10, 5, colors.ink);
-      rect(x + 37, y + 26, 7, 20, colors.ink);
-      rect(x + 56, y + 26, 7, 20, colors.ink);
-      rect(x + 30, y + 43, 16, 5, colors.ink);
-      rect(x + 55, y + 43, 16, 5, colors.ink);
+  if (!playerImageReady) return;
+
+  const imageWidth = playerImage.naturalWidth;
+  const imageHeight = playerImage.naturalHeight;
+  if (playerImageCanvas.width !== imageWidth || playerImageCanvas.height !== imageHeight) {
+    playerImageCanvas.width = imageWidth;
+    playerImageCanvas.height = imageHeight;
+  }
+
+  playerImageContext.drawImage(playerImage, 0, 0, imageWidth, imageHeight);
+  const frame = playerImageContext.getImageData(0, 0, imageWidth, imageHeight);
+  for (let i = 0; i < frame.data.length; i += 4) {
+    const red = frame.data[i];
+    const green = frame.data[i + 1];
+    const blue = frame.data[i + 2];
+    const greenStrength = green - Math.max(red, blue);
+    if (green > 100 && greenStrength > 30) {
+      const transparency = Math.min(1, greenStrength / 110);
+      frame.data[i + 3] *= 1 - transparency;
+      frame.data[i + 1] = Math.min(green, Math.max(red, blue));
     }
   }
-}
+  playerImageContext.putImageData(frame, 0, 0);
 
-function drawMax(x, y, scale) {
+  const stride = running && !player.jumping ? Math.sin(animationTime / 85) : 0;
+  const size = 100;
+  const croppedHeight = imageHeight - 18;
+  const drawHeight = size * croppedHeight / imageHeight;
   ctx.save();
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.drawImage(maxImage, x, y, 56 * scale, 84 * scale);
+  ctx.translate(player.x + player.w / 2, player.y + player.h - drawHeight / 2 - Math.abs(stride) * 5);
+  ctx.rotate(stride * 0.035);
+  ctx.drawImage(playerImageCanvas, 0, 0, imageWidth, croppedHeight, -size / 2, -drawHeight / 2, size, drawHeight);
   ctx.restore();
 }
 
@@ -262,6 +260,7 @@ function draw() {
 function loop(time) {
   const dt = Math.min(34, time - lastTime || 16.67);
   lastTime = time;
+  animationTime += dt;
   update(dt);
   draw();
   requestAnimationFrame(loop);
