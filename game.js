@@ -15,11 +15,23 @@ const playerImage = new Image();
 const playerImageCanvas = document.createElement('canvas');
 const playerImageContext = playerImageCanvas.getContext('2d', { willReadFrequently: true });
 let playerImageReady = false;
-let animationTime = 0;
+let gifFrames = [];
+let currentGifFrame = -1;
+let runAnimationTime = 0;
 
-playerImage.onload = () => { playerImageReady = true; };
+playerImage.onload = () => {
+  if (playerImageReady) return;
+  playerImageCanvas.width = playerImage.naturalWidth;
+  playerImageCanvas.height = playerImage.naturalHeight;
+  playerImageContext.drawImage(playerImage, 0, 0);
+  playerImageContext.putImageData(removeGreenScreen(
+    playerImageContext.getImageData(0, 0, playerImageCanvas.width, playerImageCanvas.height)
+  ), 0, 0);
+  playerImageReady = true;
+};
 playerImage.onerror = () => console.error('無法載入主角 GIF：assets/BAR.gif');
 playerImage.src = 'assets/BAR.gif';
+decodeGifFrames();
 
 let best = Number(localStorage.getItem('verstappen-best') || 0);
 let score = 0;
@@ -38,6 +50,7 @@ function resetGame() {
   score = 0;
   speed = 6;
   distance = 0;
+  runAnimationTime = 0;
   spawnTimer = 700;
   stripeOffset = 0;
   obstacles = [];
@@ -54,7 +67,7 @@ function resetGame() {
 }
 
 function startOrJump() {
-  if (gameOver) { resetGame(); return; }
+  if (gameOver) resetGame();
   if (!running) { running = true; overlay.classList.add('hidden'); }
   if (!player.jumping) {
     player.vy = -15;
@@ -113,68 +126,91 @@ function drawCheckeredFlag(x, y) {
   }
 }
 
-function drawCar(x, y, scale = 1, carried = false) {
-  if (f1ImageReady) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.drawImage(f1Image, x - 8 * scale, y - 4 * scale, 118 * scale, 68 * scale);
-    ctx.restore();
-    return;
-  }
-
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
-  rect(13, 25, 73, 12, colors.red);
-  rect(26, 17, 38, 10, colors.blue);
-  rect(34, 10, 18, 9, colors.blue);
-  rect(13, 22, 11, 5, colors.yellow);
-  rect(64, 28, 31, 4, colors.yellow);
-  rect(5, 34, 100, 4, colors.ink);
-  rect(22, 38, 13, 13, colors.ink);
-  rect(72, 38, 13, 13, colors.ink);
-  rect(25, 40, 7, 7, colors.gray);
-  rect(75, 40, 7, 7, colors.gray);
-  rect(0, 22, 16, 6, colors.ink);
-  rect(86, 22, 20, 6, colors.ink);
-  if (carried) { rect(47, 0, 5, 12, colors.ink); }
-  ctx.restore();
-}
-
 function drawPlayer() {
-  if (!playerImageReady) return;
+  if (!playerImageReady || playerImageCanvas.width === 0 || playerImageCanvas.height === 0) return;
 
-  const imageWidth = playerImage.naturalWidth;
-  const imageHeight = playerImage.naturalHeight;
-  if (playerImageCanvas.width !== imageWidth || playerImageCanvas.height !== imageHeight) {
-    playerImageCanvas.width = imageWidth;
-    playerImageCanvas.height = imageHeight;
-  }
-
-  playerImageContext.drawImage(playerImage, 0, 0, imageWidth, imageHeight);
-  const frame = playerImageContext.getImageData(0, 0, imageWidth, imageHeight);
-  for (let i = 0; i < frame.data.length; i += 4) {
-    const red = frame.data[i];
-    const green = frame.data[i + 1];
-    const blue = frame.data[i + 2];
-    const greenStrength = green - Math.max(red, blue);
-    if (green > 100 && greenStrength > 30) {
-      const transparency = Math.min(1, greenStrength / 110);
-      frame.data[i + 3] *= 1 - transparency;
-      frame.data[i + 1] = Math.min(green, Math.max(red, blue));
+  if (gifFrames.length) {
+    const frameIndex = running ? getGifFrameIndex(runAnimationTime) : 0;
+    if (frameIndex !== currentGifFrame) {
+      playerImageContext.putImageData(gifFrames[frameIndex].image, 0, 0);
+      currentGifFrame = frameIndex;
     }
   }
-  playerImageContext.putImageData(frame, 0, 0);
 
-  const stride = running && !player.jumping ? Math.sin(animationTime / 85) : 0;
+  const imageWidth = playerImageCanvas.width;
+  const imageHeight = playerImageCanvas.height;
   const size = 100;
   const croppedHeight = imageHeight - 18;
   const drawHeight = size * croppedHeight / imageHeight;
   ctx.save();
-  ctx.translate(player.x + player.w / 2, player.y + player.h - drawHeight / 2 - Math.abs(stride) * 5);
-  ctx.rotate(stride * 0.035);
+  ctx.translate(player.x + player.w / 2, player.y + player.h - drawHeight / 2);
+  ctx.scale(-1, 1);
   ctx.drawImage(playerImageCanvas, 0, 0, imageWidth, croppedHeight, -size / 2, -drawHeight / 2, size, drawHeight);
   ctx.restore();
+}
+
+function removeGreenScreen(image) {
+  for (let i = 0; i < image.data.length; i += 4) {
+    const red = image.data[i];
+    const green = image.data[i + 1];
+    const blue = image.data[i + 2];
+    const greenStrength = green - Math.max(red, blue);
+    if (green > 100 && greenStrength > 30) {
+      image.data[i + 3] *= 1 - Math.min(1, greenStrength / 110);
+      image.data[i + 1] = Math.min(green, Math.max(red, blue));
+    }
+  }
+  return image;
+}
+
+async function decodeGifFrames() {
+  let decoder;
+  try {
+    if (typeof ImageDecoder === 'undefined') {
+      throw new Error('此瀏覽器不支援逐格 GIF 解碼。');
+    }
+    const response = await fetch(playerImage.src);
+    if (!response.ok) throw new Error(`讀取 GIF 失敗：HTTP ${response.status}`);
+    decoder = new ImageDecoder({ data: await response.arrayBuffer(), type: 'image/gif' });
+    await decoder.tracks.ready;
+
+    const track = decoder.tracks.selectedTrack;
+    if (!track || !track.frameCount) throw new Error('GIF 沒有可播放的影格。');
+    for (let frameIndex = 0; frameIndex < track.frameCount; frameIndex += 1) {
+      const decoded = await decoder.decode({ frameIndex, completeFramesOnly: true });
+      const frame = decoded.image;
+      if (playerImageCanvas.width !== frame.codedWidth || playerImageCanvas.height !== frame.codedHeight) {
+        playerImageCanvas.width = frame.codedWidth;
+        playerImageCanvas.height = frame.codedHeight;
+      }
+      playerImageContext.clearRect(0, 0, playerImageCanvas.width, playerImageCanvas.height);
+      playerImageContext.drawImage(frame, 0, 0);
+      const image = removeGreenScreen(playerImageContext.getImageData(
+        0, 0, playerImageCanvas.width, playerImageCanvas.height
+      ));
+      const duration = Number.isFinite(frame.duration) && frame.duration > 0 ? frame.duration / 1000 : 50;
+      gifFrames.push({ image, duration });
+      frame.close();
+    }
+
+    playerImageContext.putImageData(gifFrames[0].image, 0, 0);
+    playerImageReady = true;
+    currentGifFrame = 0;
+  } catch (error) {
+    console.error('無法逐格解碼主角 GIF，將使用靜態影格。', error);
+  } finally {
+    if (decoder) decoder.close();
+  }
+}
+
+function getGifFrameIndex(time) {
+  const totalDuration = gifFrames.reduce((total, frame) => total + frame.duration, 0);
+  let frameTime = totalDuration ? time % totalDuration : 0;
+  for (let i = 0; i < gifFrames.length; i += 1) {
+    if (frameTime < gifFrames[i].duration) return i;
+    frameTime -= gifFrames[i].duration;
+  }
+  return 0;
 }
 
 function spawnObstacle() {
@@ -260,7 +296,7 @@ function draw() {
 function loop(time) {
   const dt = Math.min(34, time - lastTime || 16.67);
   lastTime = time;
-  animationTime += dt;
+  if (running) runAnimationTime += dt;
   update(dt);
   draw();
   requestAnimationFrame(loop);
@@ -273,6 +309,6 @@ window.addEventListener('keydown', event => {
   }
 });
 canvas.addEventListener('pointerdown', startOrJump);
-restartButton.addEventListener('click', resetGame);
+restartButton.addEventListener('click', startOrJump);
 resetGame();
 requestAnimationFrame(loop);
