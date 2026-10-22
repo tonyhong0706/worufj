@@ -24,10 +24,6 @@ playerImage.onload = () => {
   if (playerImageReady) return;
   playerImageCanvas.width = playerImage.naturalWidth;
   playerImageCanvas.height = playerImage.naturalHeight;
-  playerImageContext.drawImage(playerImage, 0, 0);
-  playerImageContext.putImageData(removeGreenScreen(
-    playerImageContext.getImageData(0, 0, playerImageCanvas.width, playerImageCanvas.height)
-  ), 0, 0);
   playerImageReady = true;
 };
 playerImage.onerror = () => console.error('無法載入主角 GIF：assets/BAR.gif');
@@ -238,20 +234,25 @@ function drawSnowfall() {
 }
 
 function drawPlayer() {
-  const useProcessedImage = playerImageReady && playerImageCanvas.width > 0 && playerImageCanvas.height > 0;
-  if (!useProcessedImage && (!playerImage.complete || !playerImage.naturalWidth || !playerImage.naturalHeight)) return;
+  if (!playerImage.complete || !playerImage.naturalWidth || !playerImage.naturalHeight) return;
 
-  if (useProcessedImage && gifFrames.length) {
+  if (gifFrames.length && playerImageCanvas.width > 0 && playerImageCanvas.height > 0) {
     const frameIndex = running ? getGifFrameIndex(runAnimationTime) : 0;
     if (frameIndex !== currentGifFrame) {
       playerImageContext.putImageData(gifFrames[frameIndex].image, 0, 0);
       currentGifFrame = frameIndex;
     }
+  } else {
+    playerImageContext.clearRect(0, 0, playerImageCanvas.width, playerImageCanvas.height);
+    playerImageContext.drawImage(playerImage, 0, 0);
+    playerImageContext.putImageData(removeGreenScreen(
+      playerImageContext.getImageData(0, 0, playerImageCanvas.width, playerImageCanvas.height)
+    ), 0, 0);
   }
 
-  const image = useProcessedImage ? playerImageCanvas : playerImage;
-  const imageWidth = useProcessedImage ? playerImageCanvas.width : playerImage.naturalWidth;
-  const imageHeight = useProcessedImage ? playerImageCanvas.height : playerImage.naturalHeight;
+  const image = playerImageCanvas;
+  const imageWidth = playerImageCanvas.width;
+  const imageHeight = playerImageCanvas.height;
   const size = 100;
   const croppedHeight = imageHeight - 18;
   const drawHeight = size * croppedHeight / imageHeight;
@@ -275,18 +276,33 @@ function drawCoins() {
 
   coins.forEach(coin => {
     const pulse = 1 + Math.sin(runAnimationTime / 180 + coin.x) * .08;
-    const radius = 25 * pulse;
+    const radius = 31 * pulse;
+    const centerX = coin.x + coin.w / 2;
+    const centerY = coin.y + coin.h / 2;
     ctx.save();
     ctx.shadowColor = '#ffd54f';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = '#ffd54f';
-    ctx.lineWidth = 4;
+    ctx.shadowBlur = 18;
+    const coinFill = ctx.createRadialGradient(centerX - 8, centerY - 10, 2, centerX, centerY, radius);
+    coinFill.addColorStop(0, '#fff4a8');
+    coinFill.addColorStop(.55, '#ffd54f');
+    coinFill.addColorStop(1, '#e99a16');
+    ctx.fillStyle = coinFill;
     ctx.beginPath();
-    ctx.arc(coin.x + coin.w / 2, coin.y + coin.h / 2, radius, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#fff0a3';
+    ctx.lineWidth = 3;
     ctx.stroke();
     ctx.restore();
     if (coinImageReady) {
-      ctx.drawImage(coinCanvas, coin.x, coin.y, coin.w, coin.h);
+      ctx.drawImage(coinCanvas, coin.x + 5, coin.y + 3, coin.w - 10, coin.h - 6);
+    } else {
+      ctx.fillStyle = '#8a5a0a';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('秦', centerX, centerY);
     }
   });
 }
