@@ -127,9 +127,10 @@ function drawCheckeredFlag(x, y) {
 }
 
 function drawPlayer() {
-  if (!playerImageReady || playerImageCanvas.width === 0 || playerImageCanvas.height === 0) return;
+  const useProcessedImage = playerImageReady && playerImageCanvas.width > 0 && playerImageCanvas.height > 0;
+  if (!useProcessedImage && (!playerImage.complete || !playerImage.naturalWidth || !playerImage.naturalHeight)) return;
 
-  if (gifFrames.length) {
+  if (useProcessedImage && gifFrames.length) {
     const frameIndex = running ? getGifFrameIndex(runAnimationTime) : 0;
     if (frameIndex !== currentGifFrame) {
       playerImageContext.putImageData(gifFrames[frameIndex].image, 0, 0);
@@ -137,15 +138,16 @@ function drawPlayer() {
     }
   }
 
-  const imageWidth = playerImageCanvas.width;
-  const imageHeight = playerImageCanvas.height;
+  const image = useProcessedImage ? playerImageCanvas : playerImage;
+  const imageWidth = useProcessedImage ? playerImageCanvas.width : playerImage.naturalWidth;
+  const imageHeight = useProcessedImage ? playerImageCanvas.height : playerImage.naturalHeight;
   const size = 100;
   const croppedHeight = imageHeight - 18;
   const drawHeight = size * croppedHeight / imageHeight;
   ctx.save();
   ctx.translate(player.x + player.w / 2, player.y + player.h - drawHeight / 2);
   ctx.scale(-1, 1);
-  ctx.drawImage(playerImageCanvas, 0, 0, imageWidth, croppedHeight, -size / 2, -drawHeight / 2, size, drawHeight);
+  ctx.drawImage(image, 0, 0, imageWidth, croppedHeight, -size / 2, -drawHeight / 2, size, drawHeight);
   ctx.restore();
 }
 
