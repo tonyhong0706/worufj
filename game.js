@@ -7,6 +7,8 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayCopy = document.getElementById('overlay-copy');
 const restartButton = document.getElementById('restart');
+const spriteLayer = document.getElementById('sprite-layer');
+const playerGifFallback = document.getElementById('player-gif-fallback');
 
 const W = canvas.width;
 const H = canvas.height;
@@ -234,20 +236,29 @@ function drawSnowfall() {
 }
 
 function drawPlayer() {
-  if (!playerImage.complete || !playerImage.naturalWidth || !playerImage.naturalHeight) return;
+  if (!gifFrames.length) {
+    const canvasBounds = canvas.getBoundingClientRect();
+    const layerBounds = spriteLayer.getBoundingClientRect();
+    const scaleX = canvas.clientWidth / W;
+    const scaleY = canvas.clientHeight / H;
+    const size = 100;
+    const croppedHeight = playerImage.naturalHeight
+      ? size * (playerImage.naturalHeight - 18) / playerImage.naturalHeight
+      : player.h;
+    playerGifFallback.style.display = 'block';
+    playerGifFallback.style.left = `${canvasBounds.left - layerBounds.left + canvas.clientLeft + player.x * scaleX}px`;
+    playerGifFallback.style.top = `${canvasBounds.top - layerBounds.top + canvas.clientTop + (player.y + player.h - croppedHeight) * scaleY}px`;
+    playerGifFallback.style.width = `${size * scaleX}px`;
+    playerGifFallback.style.height = `${croppedHeight * scaleY}px`;
+    return;
+  }
+  playerGifFallback.style.display = 'none';
 
-  if (gifFrames.length && playerImageCanvas.width > 0 && playerImageCanvas.height > 0) {
-    const frameIndex = running ? getGifFrameIndex(runAnimationTime) : 0;
-    if (frameIndex !== currentGifFrame) {
-      playerImageContext.putImageData(gifFrames[frameIndex].image, 0, 0);
-      currentGifFrame = frameIndex;
-    }
-  } else {
-    playerImageContext.clearRect(0, 0, playerImageCanvas.width, playerImageCanvas.height);
-    playerImageContext.drawImage(playerImage, 0, 0);
-    playerImageContext.putImageData(removeGreenScreen(
-      playerImageContext.getImageData(0, 0, playerImageCanvas.width, playerImageCanvas.height)
-    ), 0, 0);
+  if (playerImageCanvas.width === 0 || playerImageCanvas.height === 0) return;
+  const frameIndex = running ? getGifFrameIndex(runAnimationTime) : 0;
+  if (frameIndex !== currentGifFrame) {
+    playerImageContext.putImageData(gifFrames[frameIndex].image, 0, 0);
+    currentGifFrame = frameIndex;
   }
 
   const image = playerImageCanvas;

@@ -77,6 +77,19 @@ canvas {
   pointer-events: none;
   transition: opacity .2s ease;
 }
+.sprite-layer {
+  position: absolute;
+  inset: 18px;
+  pointer-events: none;
+}
+#player-gif-fallback {
+  position: absolute;
+  display: none;
+  object-fit: cover;
+  object-position: top;
+  mix-blend-mode: multiply;
+  transform: scaleX(-1);
+}
 .overlay.hidden { opacity: 0; }
 .overlay-card {
   max-width: 360px;
