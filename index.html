@@ -3,38 +3,39 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>VERSTAPPEN // DINO RUN</title>
+  <title>秦始皇騎北極熊</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="shell">
     <header>
       <div class="brand">
-        <div class="badge">MV<br>33</div>
+        <div class="badge" aria-hidden="true">秦</div>
         <div>
-          <h1>VERSTAPPEN // DINO RUN</h1>
-          <p class="subtitle">RED BULL RACING · KEEP PUSHING</p>
+          <h1>秦始皇騎北極熊</h1>
+          <p class="subtitle">極地遠征 · 極光之下</p>
         </div>
       </div>
       <div class="hud" aria-label="遊戲資訊">
         <div><strong id="score">00000</strong><span>SCORE</span></div>
         <div><strong id="best">00000</strong><span>BEST</span></div>
+        <div><strong id="coin-count">00</strong><span>COINS</span></div>
       </div>
     </header>
 
     <section class="game-wrap">
-      <canvas id="game" width="960" height="420" aria-label="GIF 主角跑酷遊戲"></canvas>
+      <canvas id="game" width="960" height="420" aria-label="秦始皇騎北極熊穿越冰原的跑酷遊戲"></canvas>
       <div id="overlay" class="overlay">
         <div class="overlay-card">
-          <h2 id="overlay-title">READY TO RACE?</h2>
+          <h2 id="overlay-title">穿越極地！</h2>
           <p id="overlay-copy">按 <kbd>空白鍵</kbd> 或點擊畫面跳躍</p>
-          <p>操控主角跳過賽道障礙物！</p>
+          <p>躲開冰塊與冰柱，奔向極光！</p>
         </div>
       </div>
     </section>
 
     <footer>
-      <span class="tip">SPACE / ↑ / 點擊：跳躍　·　撞到障礙物後重新開始</span>
+      <span class="tip">空白鍵 / ↑ / 點擊：跳躍　·　撞到障礙物後重新出發</span>
       <button id="restart" type="button">↻ 重新出發</button>
     </footer>
   </main>

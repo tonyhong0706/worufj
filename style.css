@@ -1,10 +1,10 @@
 :root {
-  --ink: #101820;
-  --paper: #f6f3eb;
-  --red: #e10600;
-  --yellow: #ffd200;
-  --blue: #0b3d91;
-  --panel: #fffdf6;
+  --ink: #10202e;
+  --paper: #e9f5f7;
+  --red: #d7ffff;
+  --yellow: #9ef7dc;
+  --blue: #176b79;
+  --panel: #f7fcff;
 }
 
 * { box-sizing: border-box; }
@@ -33,7 +33,7 @@ header {
   gap: 20px;
   padding: 18px 22px;
   border-bottom: 3px solid var(--ink);
-  background: var(--yellow);
+  background: linear-gradient(110deg, #a8f3da, #d8f6f7 60%, #d9d5ff);
 }
 
 .brand { display: flex; align-items: center; gap: 12px; }
@@ -43,8 +43,8 @@ header {
   display: grid;
   place-items: center;
   border: 3px solid var(--ink);
-  background: var(--red);
-  color: white;
+  background: #176b79;
+  color: #eaffff;
   font-weight: 900;
   font-size: 13px;
   line-height: .9;
@@ -57,14 +57,14 @@ h1 { margin: 0; font-size: clamp(18px, 3vw, 30px); letter-spacing: 1px; }
 .hud strong { display: block; font-size: 24px; }
 .hud span { font-size: 10px; font-weight: 700; }
 
-.game-wrap { position: relative; padding: 18px; background: #dbe8ec; }
+.game-wrap { position: relative; padding: 18px; background: #b9dfe5; }
 canvas {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 16 / 7;
   border: 3px solid var(--ink);
-  background: #fbfaf4;
+  background: #10253e;
   image-rendering: pixelated;
   cursor: pointer;
 }
@@ -82,9 +82,9 @@ canvas {
   max-width: 360px;
   padding: 22px 28px;
   border: 3px solid var(--ink);
-  background: rgba(255, 253, 246, .94);
+  background: rgba(245, 253, 255, .93);
   text-align: center;
-  box-shadow: 6px 6px 0 var(--red);
+  box-shadow: 6px 6px 0 #83d9c2;
 }
 .overlay-card h2 { margin: 0 0 8px; font-size: 26px; }
 .overlay-card p { margin: 5px 0; font-size: 14px; font-weight: 700; }
@@ -108,15 +108,16 @@ footer button {
   font: inherit;
   cursor: pointer;
 }
-footer button:hover { background: var(--red); }
+footer button:hover { background: #278c91; }
 .tip { opacity: .75; }
 
 @media (max-width: 620px) {
   body { padding: 8px; }
   .shell { box-shadow: 5px 5px 0 var(--ink); }
   header { padding: 12px; }
-  .hud { gap: 10px; }
-  .hud strong { font-size: 18px; }
+  .hud { gap: 8px; }
+  .hud strong { font-size: 16px; }
+  .hud span { font-size: 9px; }
   .game-wrap { padding: 10px; }
   .overlay { inset: 10px; }
   footer { padding: 11px 12px; flex-wrap: wrap; }
