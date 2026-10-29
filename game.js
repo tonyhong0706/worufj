@@ -13,6 +13,7 @@ const playerGifFallback = document.getElementById('player-gif-fallback');
 const W = canvas.width;
 const H = canvas.height;
 const groundY = 330;
+const dayNightDuration = 45000;
 const colors = { ink: '#10202e', ice: '#8ee8ed', snow: '#f2fcff', deepIce: '#3c8fa4', shadow: '#276276' };
 const playerImage = new Image();
 const playerImageCanvas = document.createElement('canvas');
@@ -39,7 +40,7 @@ let distance = 0;
 let running = false;
 let gameOver = false;
 let lastTime = 0;
-let spawnTimer = 700;
+let nextObstacleDistance = 0;
 let stripeOffset = 0;
 let obstacles = [];
 
@@ -71,7 +72,7 @@ function resetGame() {
   speed = 6;
   distance = 0;
   runAnimationTime = 0;
-  spawnTimer = 700;
+  nextObstacleDistance = randomObstacleGap();
   coinSpawnTimer = 1100;
   coinsCollected = 0;
   coins = [];
@@ -110,17 +111,33 @@ function rect(x, y, w, h, color) {
 }
 
 function drawBackground() {
+  const isDay = Math.floor(runAnimationTime / dayNightDuration) % 2 === 1;
   const sky = ctx.createLinearGradient(0, 0, 0, groundY);
-  sky.addColorStop(0, '#101a3a');
-  sky.addColorStop(.58, '#174b67');
-  sky.addColorStop(1, '#84c9d0');
+  sky.addColorStop(0, isDay ? '#63b8e8' : '#101a3a');
+  sky.addColorStop(.58, isDay ? '#a8dbea' : '#174b67');
+  sky.addColorStop(1, isDay ? '#f5e6b5' : '#84c9d0');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
-  drawAurora();
-  drawStars();
-  drawMountains();
-  drawSnowfield();
+  if (isDay) drawSun();
+  else {
+    drawAurora();
+    drawStars();
+  }
+  drawMountains(isDay);
+  drawSnowfield(isDay);
   drawSnowfall();
+}
+
+function drawSun() {
+  const glow = ctx.createRadialGradient(810, 65, 12, 810, 65, 56);
+  glow.addColorStop(0, 'rgba(255, 247, 190, .9)');
+  glow.addColorStop(1, 'rgba(255, 234, 155, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(750, 5, 120, 120);
+  ctx.fillStyle = '#fff2b0';
+  ctx.beginPath();
+  ctx.arc(810, 65, 23, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawAurora() {
@@ -169,8 +186,8 @@ function drawStars() {
   ctx.fill();
 }
 
-function drawMountains() {
-  ctx.fillStyle = '#496f8d';
+function drawMountains(isDay) {
+  ctx.fillStyle = isDay ? '#668fa0' : '#496f8d';
   ctx.beginPath();
   ctx.moveTo(0, 250);
   ctx.lineTo(100, 166); ctx.lineTo(171, 235); ctx.lineTo(281, 145);
@@ -179,7 +196,7 @@ function drawMountains() {
   ctx.lineTo(960, groundY); ctx.lineTo(0, groundY); ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = '#d9f5f5';
+  ctx.fillStyle = isDay ? '#f5fbeb' : '#d9f5f5';
   [[100, 166, 37], [281, 145, 43], [512, 174, 31], [772, 157, 42]].forEach(([x, y, width]) => {
     ctx.beginPath();
     ctx.moveTo(x - width, y + 28);
@@ -193,10 +210,10 @@ function drawMountains() {
   });
 }
 
-function drawSnowfield() {
+function drawSnowfield(isDay) {
   const ground = ctx.createLinearGradient(0, groundY, 0, H);
-  ground.addColorStop(0, '#eefcff');
-  ground.addColorStop(1, '#b7e2eb');
+  ground.addColorStop(0, isDay ? '#fffdf0' : '#eefcff');
+  ground.addColorStop(1, isDay ? '#d4edf0' : '#b7e2eb');
   ctx.fillStyle = ground;
   ctx.fillRect(0, groundY, W, H - groundY);
 
@@ -451,6 +468,10 @@ function spawnObstacle() {
   else obstacles.push({ type: 'snowman', x: W + 20, y: groundY - 62, w: 42, h: 62 });
 }
 
+function randomObstacleGap() {
+  return 360 + Math.random() * 2040;
+}
+
 function spawnCoin() {
   const height = 105 + Math.random() * 65;
   coins.push({ x: W + 20, y: groundY - height, w: 56, h: 64 });
@@ -539,10 +560,9 @@ function update(dt) {
     player.vy = 0;
     player.jumping = false;
   }
-  spawnTimer -= dt;
-  if (spawnTimer <= 0) {
+  if (distance >= nextObstacleDistance) {
     spawnObstacle();
-    spawnTimer = Math.max(580, 1250 - speed * 50 + Math.random() * 500);
+    nextObstacleDistance = distance + randomObstacleGap();
   }
   coinSpawnTimer -= dt;
   if (coinSpawnTimer <= 0) {
@@ -603,6 +623,11 @@ window.addEventListener('keydown', event => {
   if (event.code === 'Space' || event.code === 'ArrowUp') {
     event.preventDefault();
     startOrJump();
+  } else if (event.code === 'ArrowDown') {
+    event.preventDefault();
+    if (running && !gameOver && player.jumping) {
+      player.vy = Math.max(player.vy, 18);
+    }
   }
 });
 canvas.addEventListener('pointerdown', startOrJump);
